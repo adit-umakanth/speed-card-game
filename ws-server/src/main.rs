@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex}, error::Error,
 };
 
-use futures_util::{SinkExt, StreamExt, TryFutureExt};
+use futures_util::{SinkExt, StreamExt};
 use log::info;
 use pretty_env_logger;
 use warp::{
@@ -22,35 +22,44 @@ async fn main() {
 
     let speed = warp::path("speed").and(warp::ws()).and(waiting_room).map(
         |ws: warp::ws::Ws, waiting_room| {
-            ws.on_upgrade(move |socket| user_connected(socket, waiting_room))
+            ws.on_upgrade(move |socket| handle_connection(socket, waiting_room))
         },
     );
 
     warp::serve(speed).run(([127, 0, 0, 1], 3030)).await;
 }
 
-async fn user_connected(mut ws: WebSocket, waiting_room: WaitingRoom) {
+async fn handle_connection(ws: WebSocket, waiting_room: WaitingRoom) {
+    match user_connected(ws, waiting_room).await {
+        Ok(_) => log::info!("Closed successfully!"),
+        Err(e) => log::error!("Something happened: {}", e),
+    }
+}
+
+async fn user_connected(mut ws: WebSocket, waiting_room: WaitingRoom) -> Result<(), Box<dyn Error>> {
     log::info!("Connected with client");
 
     let message = ws.next().await;
     let msg: String;
 
     if let Some(Ok(message)) = message {
-        msg = message.to_str().unwrap().to_owned();
-        info!("Recived room name: {}", msg);
+        info!("Raw message: {:#?}", message);
+        msg = message.to_str().map_err(|_| format!("Error converting message to string"))?.to_owned();
     } else {
-        return;
+        return Err("No room message received".into());
     }
 
     let websockets = handle_waiting_room(msg, ws, waiting_room);
     match websockets {
         Some(websockets) => {
             let (mut player1_ws, mut player2_ws) = websockets;
-            player1_ws.send(Message::text("Wow!")).await;
-            player2_ws.send(Message::text("Wow!")).await;
+            player1_ws.send(Message::text("Wow!")).await?;
+            player2_ws.send(Message::text("Wow!")).await?;
         },
         None => (),
     }
+
+    Ok(())
 }
 
 fn handle_waiting_room(

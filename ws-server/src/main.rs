@@ -1,6 +1,9 @@
+pub mod cards;
+
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex}, error::Error,
+    error::Error,
+    sync::{Arc, Mutex},
 };
 
 use futures_util::{SinkExt, StreamExt};
@@ -36,7 +39,10 @@ async fn handle_connection(ws: WebSocket, waiting_room: WaitingRoom) {
     }
 }
 
-async fn user_connected(mut ws: WebSocket, waiting_room: WaitingRoom) -> Result<(), Box<dyn Error>> {
+async fn user_connected(
+    mut ws: WebSocket,
+    waiting_room: WaitingRoom,
+) -> Result<(), Box<dyn Error>> {
     log::info!("Connected with client");
 
     let message = ws.next().await;
@@ -44,7 +50,10 @@ async fn user_connected(mut ws: WebSocket, waiting_room: WaitingRoom) -> Result<
 
     if let Some(Ok(message)) = message {
         info!("Raw message: {:#?}", message);
-        msg = message.to_str().map_err(|_| format!("Error converting message to string"))?.to_owned();
+        msg = message
+            .to_str()
+            .map_err(|_| format!("Error converting message to string"))?
+            .to_owned();
     } else {
         return Err("No room message received".into());
     }
@@ -55,7 +64,7 @@ async fn user_connected(mut ws: WebSocket, waiting_room: WaitingRoom) -> Result<
             let (mut player1_ws, mut player2_ws) = websockets;
             player1_ws.send(Message::text("Wow!")).await?;
             player2_ws.send(Message::text("Wow!")).await?;
-        },
+        }
         None => (),
     }
 
@@ -73,6 +82,6 @@ fn handle_waiting_room(
         None => {
             guard.insert(room_name, ws);
             None
-        },
+        }
     }
 }
